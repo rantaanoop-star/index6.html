@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CityCare Hospital – Appointments & Live Queue</title>
+<style>
+:root{--brand:#1f7aec;--accent:#0dbf8c;--bg:#f6f9ff;}
+*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+body{margin:0;background:var(--bg);color:#111}
+header{background:white;border-bottom:1px solid #e7eefc;position:sticky;top:0;z-index:10}
+.container{max-width:980px;margin:0 auto;padding:16px}
+.brand{display:flex;align-items:center;gap:12px}
+.badge{font-size:12px;color:#fff;background:var(--brand);padding:3px 8px;border-radius:999px}
+h1{font-size:20px;margin:0}
+h2{font-size:18px;margin:12px 0}
+h3{margin:0 0 8px}
+.card{background:#fff;border:1px solid #e7eefc;border-radius:12px;padding:16px;margin:16px 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+label{display:block;margin:8px 0 4px}
+input,select,button{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px}
+button{border:0;background:var(--brand);color:#fff;cursor:pointer}
+button.secondary{background:#eef4ff;color:#123;border:1px solid #cfe0ff}
+button.danger{background:#ef4444}
+.kpi{display:flex;gap:12px;flex-wrap:wrap}
+.kpi div{background:#f8fbff;border:1px dashed #d7e6ff;padding:10px;border-radius:10px;min-width:120px}
+.small{font-size:12px;color:#555}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{border-bottom:1px solid #eef2f7;padding:8px;text-align:left;font-size:14px}
+.hide{display:none !important}
+footer{padding:32px 0;text-align:center;color:#666;font-size:12px}
+hr{border:none;border-top:1px solid #eef2f7;margin:16px 0}
+.token{font-family:monospace;background:#f6faff;border:1px solid #dbe8ff;padding:8px 10px;border-radius:8px;display:inline-block}
+.notice{font-size:12px;color:#666}
+.header-roles{margin-left:auto;display:flex;gap:8px}
+.header-roles a{font-size:12px;text-decoration:none;background:#f1f5ff;padding:6px 8px;border-radius:8px;border:1px solid #cfe0ff;color:#1746a2}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid #cbd5e1;background:#f8fafc}
+</style>
+</head>
+<body>
+<header>
+  <div class="container brand">
+    <div>
+      <span class="badge">CityCare Hospital</span>
+      <h1>Appointments & Live Queue</h1>
+      <div class="small" id="roleLabel"></div>
+    </div>
+    <!-- Quick links (for testing/demo only) -->
+    <nav class="header-roles">
+      <a href="?role=patient">Patient</a>
+      <a href="?role=doctor">Doctor</a>
+      <a href="?role=staff">Staff</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- PATIENT VIEW -->
+  <section id="patientView" class="card hide" aria-label="Patient Window">
+    <h2>Book Appointment</h2>
+    <div class="row">
+      <div class="card">
+        <label>Patient Name *</label>
+        <input id="p_name" placeholder="Enter your name" />
+        <label>Choose Doctor *</label>
+        <select id="p_doctor"></select>
+        <button id="p_book">Get Token & ETA</button>
+        <p class="notice">Your token appears on the right and tracks live as the queue moves.</p>
+      </div>
+      <div class="card">
+        <h3>Your Token</h3>
+        <div id="p_token_box" class="small">No token yet.</div>
+        <hr>
+        <button id="p_save_jpeg" class="secondary">Save Token as JPEG</button>
+      </div>
+    </div>
+
+    <!-- TRACK EXISTING TOKEN -->
+    <div class="card">
+      <h3>Track Existing Token</h3>
+      <div class="row" style="grid-template-columns:2fr 0.8fr;">
+        <input id="p_track_token" placeholder="Enter token e.g., DR2-007" />
+        <button id="p_track_btn" class="secondary">Track Status</button>
+      </div>
+      <p class="small">Tip: We auto-detect the doctor from the token. Keep this page open for live updates.</p>
+    </div>
+
+    <div class="card">
+      <h3>Live Status</h3>
+      <div class="kpi">
+        <div><div class="small">Currently Serving</div><div id="p_now" class="token">—</div></div>
+        <div><div class="small">People Ahead</div><div id="p_ahead">0</div></div>
+        <div><div class="small">Avg Minutes / Patient</div><div id="p_avg">10</div></div>
+        <div><div class="small">Your ETA</div><div id="p_eta">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCTOR VIEW -->
+  <section id="doctorView" class="card hide" aria-label="Doctor Window">
+    <h2>Doctor Console</h2>
+    <div class="row">
+      <div class="card">
+        <label>Select Your Name</label>
+        <select id="d_doctor"></select>
+        <button id="d_refresh" class="secondary">Refresh Queue</button>
+        <hr>
+        <div class="kpi">
+          <div><div class="small">Currently Serving</div><div id="d_now" class="token">—</div></div>
+          <div><div class="small">Waiting</div><div id="d_waiting">0</div></div>
+          <div><div class="small">Avg Minutes / Patient</div><div id="d_avg">10</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Actions</h3>
+        <button id="d_next">Call Next Patient ▶</button>
+        <p class="notice">This advances your queue by one token.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Queue</h3>
+      <table class="table" id="d_table">
+        <thead><tr><th>#</th><th>Token</th><th>Patient</th><th>Status</th><th>Booked At</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- STAFF VIEW -->
+  <section id="staffView" class="card hide" aria-label="Hospital Staff Window">
+    <h2>Hospital Desk (Staff Tools)</h2>
+    <div class="row">
+      <div class="card">
+        <h3>Settings</h3>
+        <label>Choose Doctor</label>
+        <select id="s_doctor"></select>
+        <label>Avg Minutes / Patient</label>
+        <input id="s_avg" type="number" min="3" max="30" value="10" />
+        <button id="s_save" class="secondary">Set Avg Time</button>
+      </div>
+      <div class="card">
+        <h3>Queue Control</h3>
+        <button id="s_next">Mark Next Patient ▶</button>
+        <button id="s_reset" class="danger">Reset Day (Clear All)</button>
+        <hr>
+        <button id="s_export" class="secondary">Export Appointments (CSV)</button>
+        <p class="notice">CSV opens directly in Microsoft Excel.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Overview</h3>
+      <table class="table" id="s_table">
+        <thead><tr><th>Doctor</th><th>Now Serving</th><th>Waiting</th><th>Avg (min)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  CityCare Hospital – Offline demo. Data stored locally in your browser (localStorage).
+</footer>
+
+<script>
+/* ---------------- Storage & Data ---------------- */
+const KEY = 'citycare.v2';
+const LAST_TOKEN_KEY  = 'citycare.last_token';
+const LAST_DOCTOR_KEY = 'citycare.last_doctor';
+
+const seedDoctors = [
+  {id:'DR1', name:'Dr. Asha Verma (Pediatrics)',       avgMin:10},
+  {id:'DR2', name:'Dr. Kunal Mehta (General Medicine)',avgMin:10},
+  {id:'DR3', name:'Dr. Neha Kapoor (Orthopedics)',     avgMin:10},
+];
+
+function loadState(){
+  const raw = localStorage.getItem(KEY);
+  if(!raw){
+    const fresh = { doctors: seedDoctors, appointments: [] };
+    localStorage.setItem(KEY, JSON.stringify(fresh));
+    return fresh;
+  }
+  try{ return JSON.parse(raw); }catch(e){ return {doctors: seedDoctors, appointments: []}; }
+}
+function saveState(s){ localStorage.setItem(KEY, JSON.stringify(s)); }
+
+const nowISO = ()=> new Date().toISOString();
+const genToken = (doctorId, seq)=> doctorId + '-' + String(seq).padStart(3,'0');
+const byDoctor = (s,id)=> s.doctors.find(d=>d.id===id);
+const queueOpenFor = (s,id)=> s.appointments.filter(a=>a.doctorId===id && a.status!=='done');
+const currentServing = (s,id)=> queueOpenFor(s,id)[0] || null;
+const peopleAhead = (s,id,token)=> Math.max(0, queueOpenFor(s,id).findIndex(a=>a.id===token));
+
+/* ---------------- Role Handling ---------------- */
+const params = new URLSearchParams(location.search);
+const role = (params.get('role')||'patient').toLowerCase();
+document.getElementById('roleLabel').textContent = 'Window: ' + role.toUpperCase();
+const show = id => document.getElementById(id).classList.remove('hide');
+const $  = sel => document.querySelector(sel);
+
+/* ---------------- Shared: fill doctor selects ---------------- */
+function fillSelect(el){
+  const s = loadState();
+  el.innerHTML = '<option value="">Select…</option>' + s.doctors.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+}
+
+/* ---------------- Patient ---------------- */
+function setupPatient(){
+  fillSelect($('#p_doctor'));
+
+  // Book new appointment
+  $('#p_book').addEventListener('click', ()=>{
+    const name = ($('#p_name').value||'').trim();
+    const doctorId = $('#p_doctor').value;
+    if(!name || !doctorId){ alert('Please enter name and select a doctor.'); return; }
+
+    const s = loadState();
+    const seq = s.appointments.filter(a=>a.doctorId===doctorId).length + 1;
+    const tokenId = genToken(doctorId, seq);
+    s.appointments.push({ id: tokenId, patient: name, doctorId, createdAt: nowISO(), status:'waiting' });
+    saveState(s);
+
+    // remember last token for live tracking
+    localStorage.setItem(LAST_TOKEN_KEY, tokenId);
+    localStorage.setItem(LAST_DOCTOR_KEY, doctorId);
+
+    renderPatientStatus(doctorId, tokenId);
+    alert('Appointment booked! Your token: ' + tokenId);
+  });
+
+  // Save token as JPEG (no external libs)
+  $('#p_save_jpeg').addEventListener('click', ()=>{
+    const box = document.getElementById('p_token_box');
+    const token = box.getAttribute('data-token');
+    if(!token){ alert('No token yet. Please book first.'); return; }
+    const name = box.getAttribute('data-name');
+    const doc  = box.getAttribute('data-doc');
+    const eta  = box.getAttribute('data-eta');
+
+    const w=640, h=360;
+    const c=document.createElement('canvas'); c.width=w; c.height=h;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='#1f7aec'; ctx.lineWidth=6; ctx.strokeRect(12,12,w-24,h-24);
+    ctx.fillStyle='#1f7aec'; ctx.font='bold 26px Arial';
+    ctx.fillText('CityCare Hospital – Appointment Token', 28, 60);
+    ctx.fillStyle='#111'; ctx.font='18px Arial';
+    const lines=[
+      'Patient : ' + (name||''),
+      'Doctor  : ' + (doc||''),
+      'Token   : ' + token,
+      'Tentative Time : ' + (eta||'—'),
+      'Issued  : ' + new Date().toLocaleString()
+    ];
+    lines.forEach((t,i)=> ctx.fillText(t, 40, 120 + i*34));
+    ctx.fillStyle='#555'; ctx.font='14px Arial';
+    ctx.fillText('Please arrive 10 minutes before your ETA. Demo use only.', 40, h-40);
+    const url=c.toDataURL('image/jpeg',0.92);
+    const a=document.createElement('a'); a.href=url; a.download=`CityCare_Token_${token}.jpg`; a.click();
+  });
+
+  // Track an existing token (typed by patient)
+  $('#p_track_btn').addEventListener('click', ()=>{
+    const token = ($('#p_track_token').value || '').trim().toUpperCase();
+    if(!token){ alert('Please enter your token number.'); return; }
+
+    const s = loadState();
+    let appt = s.appointments.find(a => a.id.toUpperCase() === token);
+    let doctorId = appt?.doctorId;
+
+    // If not found, infer doctorId from token prefix like DR2-007 → DR2
+    if (!doctorId) {
+      const m = token.match(/^([A-Z]+[0-9]+)-\d{3}$/);
+      if (m) doctorId = m[1];
+      if (doctorId) appt = s.appointments.find(a => a.id.toUpperCase() === token && a.doctorId === doctorId);
+    }
+
+    if (!doctorId || !appt) {
+      alert('Token not found. Please check the number and try again.');
+      return;
+    }
+
+    // Remember and render
+    localStorage.setItem(LAST_TOKEN_KEY, token);
+    localStorage.setItem(LAST_DOCTOR_KEY, doctorId);
+
+    const opt = Array.from(document.querySelectorAll('#p_doctor option')).find(o => o.value === doctorId);
+    if (opt) document.getElementById('p_doctor').value = doctorId;
+
+    renderPatientStatus(doctorId, token);
+  });
+
+  // Enter to track
+  document.getElementById('p_track_token').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('p_track_btn').click(); }
+  });
+
+  /* ---- Live tracking: restore + events + fallback ---- */
+  // restore last token on load
+  const lastToken  = localStorage.getItem(LAST_TOKEN_KEY);
+  const lastDoctor = localStorage.getItem(LAST_DOCTOR_KEY);
+  if (lastToken && lastDoctor) {
+    const opt = Array.from(document.querySelectorAll('#p_doctor option')).find(o => o.value === lastDoctor);
+    if (opt) document.getElementById('p_doctor').value = lastDoctor;
+    renderPatientStatus(lastDoctor, lastToken);
+  }
+
+  // update when staff/doctor saves to localStorage
+  window.addEventListener('storage', (e) => {
+    if (e.key === KEY) {
+      const t = localStorage.getItem(LAST_TOKEN_KEY);
+      const d = localStorage.getItem(LAST_DOCTOR_KEY);
+      if (t && d) renderPatientStatus(d, t);
+    }
+  });
+
+  // periodic refresh as a fallback (every 15s)
+  setInterval(() => {
+    const t = localStorage.getItem(LAST_TOKEN_KEY);
+    const d = localStorage.getItem(LAST_DOCTOR_KEY);
+    if (t && d) renderPatientStatus(d, t);
+  }, 15000);
+}
+
+function renderPatientStatus(doctorId, tokenId){
+  const s = loadState();
+  const doc = byDoctor(s, doctorId);
+  const a = s.appointments.find(x=>x.id===tokenId);
+
+  // If token no longer exists (e.g., after reset)
+  if(!a){
+    document.getElementById('p_token_box').innerHTML = 'Token not found in today\'s list.';
+    document.getElementById('p_now').textContent = '—';
+    document.getElementById('p_ahead').textContent = '0';
+    document.getElementById('p_avg').textContent = String(doc?.avgMin||10);
+    document.getElementById('p_eta').textContent = '—';
+    return;
+  }
+
+  const ahead = peopleAhead(s, doctorId, tokenId);
+  const etaMin = ahead * (doc?.avgMin||10);
+  const eta = a.status==='done' ? 'Completed' : (etaMin ? new Date(Date.now()+etaMin*60000).toLocaleTimeString() : 'Now');
+
+  const serving = currentServing(s, doctorId)?.id || '—';
+  const status = a.status==='done' ? 'Completed'
+               : (serving===a.id ? 'Now Serving' : 'Waiting');
+
+  document.getElementById('p_now').textContent = serving;
+  document.getElementById('p_avg').textContent = String(doc?.avgMin||10);
+  document.getElementById('p_ahead').textContent = a.status==='done' ? '0' : String(ahead);
+  document.getElementById('p_eta').textContent = eta;
+
+  const docName = doc?.name || '';
+  const box = document.getElementById('p_token_box');
+  box.innerHTML = `
+    <div><strong>Token:</strong> <span class="token">${a.id}</span></div>
+    <div><strong>Name:</strong> ${a.patient}</div>
+    <div><strong>Doctor:</strong> ${docName}</div>
+    <div><strong>Status:</strong> <span class="status-badge">${status}</span></div>
+    <div><strong>Booked At:</strong> ${new Date(a.createdAt).toLocaleString()}</div>
+    <div><strong>ETA:</strong> ${eta}</div>
+  `;
+  box.setAttribute('data-token', a.id);
+  box.setAttribute('data-name', a.patient);
+  box.setAttribute('data-doc', docName);
+  box.setAttribute('data-eta', eta);
+}
+
+/* ---------------- Doctor ---------------- */
+function setupDoctor(){
+  fillSelect($('#d_doctor'));
+  const refresh = ()=>{
+    const s = loadState();
+    const docId = $('#d_doctor').value;
+    if(!docId) return;
+    const doc = byDoctor(s, docId);
+    const q = queueOpenFor(s, docId);
+    $('#d_now').textContent = q[0]?.id || '—';
+    $('#d_waiting').textContent = String(Math.max(0,q.length-1));
+    $('#d_avg').textContent = String(doc?.avgMin||10);
+
+    const tbody = $('#d_table tbody'); tbody.innerHTML='';
+    const all = s.appointments.filter(a=>a.doctorId===docId);
+    all.forEach((a,i)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${i+1}</td><td>${a.id}</td><td>${a.patient}</td><td>${a.status}</td><td>${new Date(a.createdAt).toLocaleString()}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
+  $('#d_refresh').addEventListener('click', refresh);
+  $('#d_doctor').addEventListener('change', refresh);
+  $('#d_next').addEventListener('click', ()=>{
+    const docId = $('#d_doctor').value;
+    if(!docId){ alert('Select your name first.'); return; }
+    const s = loadState();
+    const q = queueOpenFor(s, docId);
+    if(!q.length){ alert('No one waiting.'); return; }
+    const first=q[0]; const idx=s.appointments.findIndex(x=>x.id===first.id);
+    if(idx>=0){ s.appointments[idx].status='done'; }
+    saveState(s);            // triggers 'storage' event for patient tab
+    refresh();
+    alert('Next patient called.');
+  });
+}
+
+/* ---------------- Staff ---------------- */
+function setupStaff(){
+  fillSelect($('#s_doctor'));
+  const renderOverview = ()=>{
+    const s = loadState();
+    const tbody = $('#s_table tbody'); tbody.innerHTML='';
+    s.doctors.forEach(d=>{
+      const q = queueOpenFor(s, d.id);
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${d.name}</td><td>${q[0]?.id||'—'}</td><td>${Math.max(0,q.length-1)}</td><td>${d.avgMin}</td>`;
+      tbody.appendChild(tr);
+    });
+  };
+  renderOverview();
+
+  $('#s_save').addEventListener('click', ()=>{
+    const docId = $('#s_doctor').value;
+    const avg = parseInt($('#s_avg').value||'10',10);
+    if(!docId){ alert('Choose a doctor.'); return; }
+    const s = loadState();
+    const d = byDoctor(s, docId);
+    if(d){ d.avgMin = Math.min(30, Math.max(3, avg)); saveState(s); }
+    renderOverview(); alert('Average time updated.');
+  });
+
+  $('#s_next').addEventListener('click', ()=>{
+    const docId = $('#s_doctor').value;
+    if(!docId){ alert('Choose a doctor.'); return; }
+    const s = loadState();
+    const q = queueOpenFor(s, docId);
+    if(!q.length){ alert('No one waiting.'); return; }
+    const first=q[0]; const idx=s.appointments.findIndex(x=>x.id===first.id);
+    if(idx>=0){ s.appointments[idx].status='done'; }
+    saveState(s);            // triggers 'storage' event for patient tab
+    renderOverview();
+  });
+
+  $('#s_reset').addEventListener('click', ()=>{
+    if(!confirm('This clears all appointments for all doctors. Continue?')) return;
+    const s = loadState(); s.appointments = []; saveState(s); renderOverview();
+  });
+
+  // CSV export
+  $('#s_export').addEventListener('click', ()=>{
+    const s = loadState();
+    const rows = [['Token','Patient','Doctor','Status','Booked At (Local)']];
+    s.appointments.forEach(a=>{
+      const d = byDoctor(s, a.doctorId);
+      rows.push([a.id, a.patient, d?.name||a.doctorId, a.status, new Date(a.createdAt).toLocaleString()]);
+    });
+    const csv = rows.map(r=>r.map(v=>{
+      v = (v??'').toString();
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+    }).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='CityCare_Appointments.csv'; a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+/* ---------------- Init ---------------- */
+(function init(){
+  if(role==='patient'){ show('patientView'); setupPatient(); }
+  if(role==='doctor'){ show('doctorView'); setupDoctor(); }
+  if(role==='staff'){  show('staffView');  setupStaff();  }
+})();
+</script>
+</body>
+</html>
